@@ -1,6 +1,6 @@
 {
   "name": "@xstd/deep-map",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "type": "module",
   "main": "./index.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "fb:rc": "node fabrique/actions/cli/build-and-publish.cli.js --mode rc"
   },
   "description": "A deep Map",
-  "keywords": [],
+  "keywords": ["Deep map"],
   "author": "Valentin Richard",
   "license": "MIT",
   "access": "public",
