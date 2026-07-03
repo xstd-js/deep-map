@@ -2,33 +2,36 @@
 
 This projet is open to everyone. Feel free to test the library, share it, improve it, and create merge requests.
 
-### Getting started
+## Getting started
 
-The library requires [Node.js](https://nodejs.org/en) `22+` and [yarn](https://yarnpkg.com/).
+### Tools
 
-First, we have to use the correct version of node:
+#### [nvm](https://github.com/nvm-sh/nvm)
+
+We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your Node.js versions.
+
+```shell
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+```
+
+#### [Node](https://nodejs.org)
 
 ```shell
 nvm use
+
+# Verify the Node.js version:
+node -v
 ```
 
-If you don't have [nvm](https://github.com/nvm-sh/nvm), you may manually install and use Node.js 22+.
-
-Then, we have to use the proper package manager (here `yarn`):
+#### [Yarn](https://yarnpkg.com)
 
 ```shell
-corepack enable
-```
+corepack enable yarn
 
-Start a local verdaccio:
+# Verify Yarn version:
+yarn -v
 
-```shell
-npx fabrique verdaccio
-```
-
-And install the dependencies:
-
-```shell
+# Install the dependencies:
 yarn install
 ```
 
@@ -54,22 +57,70 @@ yarn install
 - `fb:bench`: runs the bench tests.
 - `fb:typedoc`: generates the documentation.
   - if the library exposes publicly only a few and/or simple parts, the documentation may be defined in the `README.md` instead.
-- `fb:prod`: builds the lib in `prod` mode.
-  - builds and publishes the lib on npm as a _prod_ version.
-- `fb:dev`: builds the lib in `dev` mode.
-  - builds and publishes the lib on a local `verdaccio` with a `dev` tag.
-  - a local `verdaccio` is used to debug/test your library in another project:
-    - it is better than `npm link`, as it enforce a specific version, and allows some dependencies to be `dev` too.
-- `fb:rc`: builds the lib in `rc` mode.
-  - builds and publishes the lib on npm with a `rc` tag.
-  - to test before production and final release
 
-### To create an MR
+### To create a PR
 
 1. fork the repository
 1. add the feature/fix by modifying the code in the `src/` directory
 1. add/write some tests until 100% code coverage is reached (run the tests with `yarn fb:test:coverage`)
 1. format the code, using the command `yarn fb:format`
 1. commit and push your work following the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) convention
-1. create an MR from your repository to the upstream repository, explaining clearly what was added/fixed.
+1. create a PR from your repository to the upstream repository, explaining clearly what was added/fixed.
 
+## Release Workflow
+
+### 1. Pull Request to `main` or `develop`
+
+- The `release.yml` workflow runs on `pull_request`
+- The `yarn fb:ci:release` step runs **only if** the PR has the `dev` label
+- Impacted packages are published as:
+- `x.y.z-dev.<timestamp>`
+- npm dist-tag: `dev`
+
+### 2. Push to `develop`
+
+- Impacted packages are published as:
+- `x.y.z-rc.<timestamp>`
+- npm dist-tag: `rc`
+
+### 3. Push to `main`
+
+- Stable publication:
+- `x.y.z`
+- npm dist-tag: `latest`
+- Only if `name@x.y.z` does not already exist on npm
+
+### Graph
+
+```mermaid
+flowchart LR
+  EVENT("EVENT")
+  HAS_DEV_TAG{"has &quotdev&quot tag ?"}
+  SKIP_BUILD(["skip build"])
+  BUILD_DEV_PACKAGES["build &quotdev&quot package"]
+  PUBLISH_DEV_PACKAGES["publish &quotdev&quot package"]
+  BUILD_RC_PACKAGES["build &quotrc&quot package"]
+  PUBLISH_RC_PACKAGES["publish &quotrc&quot package"]
+  BUILD_PROD_PACKAGES["build &quotprod&quot package"]
+  PUBLISH_PROD_PACKAGES["publish &quotprod&quot package"]
+  TARGET_BRANCH{"branch"}
+
+  EVENT -- "pull_request" --> HAS_DEV_TAG
+  HAS_DEV_TAG -- "no" --> SKIP_BUILD
+  HAS_DEV_TAG -- "yes" --> BUILD_DEV_PACKAGES
+  BUILD_DEV_PACKAGES --> PUBLISH_DEV_PACKAGES
+
+  EVENT -- "push" --> TARGET_BRANCH
+
+  TARGET_BRANCH -- "develop" --> BUILD_RC_PACKAGES
+  BUILD_RC_PACKAGES --> PUBLISH_RC_PACKAGES
+
+  TARGET_BRANCH -- "main" --> BUILD_PROD_PACKAGES
+  BUILD_PROD_PACKAGES --> PUBLISH_PROD_PACKAGES
+```
+
+## Important Rules
+
+- if the version already exists on npm: the release is skipped
+- the `package.json` file in the repo must keep stable versions (`x.y.z`)
+- `-dev` / `-rc` suffixes are generated in CI

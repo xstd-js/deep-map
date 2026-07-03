@@ -81,6 +81,7 @@ describe('DeepMap', (): void => {
         map.set([1, 2], 1);
         expect(map.has([1, 2])).toBe(true);
         expect(map.has([1, 3])).toBe(false);
+        expect(map.get([1, 3])).toBe(undefined);
       });
     });
 
