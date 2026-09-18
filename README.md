@@ -3,6 +3,7 @@
 ![NPM](https://img.shields.io/npm/l/@xstd/deep-map.svg)
 ![npm type definitions](https://img.shields.io/npm/types/@xstd/deep-map.svg)
 ![coverage](https://img.shields.io/badge/coverage-100%25-green)
+![AI generation](https://img.shields.io/badge/AI_generation-low-yellow)
 
 <picture>
   <source height="64" media="(prefers-color-scheme: dark)" srcset="https://github.com/xstd-js/website/blob/main/assets/logo/png/logo-large-dark.png?raw=true">
