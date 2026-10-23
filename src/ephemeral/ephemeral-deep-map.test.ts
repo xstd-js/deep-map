@@ -37,6 +37,22 @@ describe('EphemeralDeepMap', (): void => {
       expect(map.size).toBe(1);
       expect(map.get([1, 2])).toBe(3);
     });
+
+    it('accepts initial entries with a expired callback', (): void => {
+      const expired = vi.fn();
+      const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000, [
+        [[1, 2], 3, expired],
+      ]);
+
+      expect(map.size).toBe(1);
+      expect(map.get([1, 2])).toBe(3);
+
+      vi.advanceTimersByTime(1000);
+
+      expect(map.size).toBe(0);
+      expect(expired).toHaveBeenCalledTimes(1);
+      expect(expired).toHaveBeenCalledWith(3);
+    });
   });
 
   describe('properties', (): void => {
@@ -175,6 +191,141 @@ describe('EphemeralDeepMap', (): void => {
         expect(map.upsert([1, 2], factory)).toBe(3);
         expect(factory).toHaveBeenCalledTimes(1);
         expect(map.get([1, 2])).toBe(3);
+      });
+
+      it('starts the timer of the inserted value with the provided expired callback', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const factory = vi.fn((): number => 3);
+        const expired = vi.fn();
+
+        expect(map.upsert([1, 2], factory, expired)).toBe(3);
+        expect(vi.getTimerCount()).toBe(1);
+
+        vi.advanceTimersByTime(1000);
+
+        expect(map.size).toBe(0);
+        expect(expired).toHaveBeenCalledTimes(1);
+        expect(expired).toHaveBeenCalledWith(3);
+      });
+
+      it('keeps the existing expired callback when the key is present', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const factory = vi.fn((): number => 3);
+        const expired = vi.fn();
+
+        map.set([1, 2], 1, expired);
+
+        expect(map.upsert([1, 2], factory)).toBe(1);
+        expect(factory).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(1000);
+
+        expect(map.size).toBe(0);
+        expect(expired).toHaveBeenCalledTimes(1);
+        expect(expired).toHaveBeenCalledWith(1);
+      });
+    });
+
+    describe('expired callback', (): void => {
+      it('calls the expired callback with the value when the entry expires', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired = vi.fn();
+
+        map.set([1, 2], 3, expired);
+        vi.advanceTimersByTime(1000);
+
+        expect(map.size).toBe(0);
+        expect(expired).toHaveBeenCalledTimes(1);
+        expect(expired).toHaveBeenCalledWith(3);
+      });
+
+      it('does not call a expired callback when the entry expires without one', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+
+        map.set([1, 2], 3);
+        vi.advanceTimersByTime(1000);
+
+        expect(map.size).toBe(0);
+      });
+
+      it('does not call the expired callback when the entry is deleted', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired = vi.fn();
+
+        map.set([1, 2], 3, expired);
+        expect(map.delete([1, 2])).toBe(true);
+
+        vi.advanceTimersByTime(1000);
+
+        expect(expired).not.toHaveBeenCalled();
+      });
+
+      it('does not call the expired callback when the map is cleared', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired = vi.fn();
+
+        map.set([1, 2], 3, expired);
+        map.clear();
+
+        vi.advanceTimersByTime(1000);
+
+        expect(expired).not.toHaveBeenCalled();
+      });
+
+      it('does not call the expired callback before the keepalive', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired = vi.fn();
+
+        map.set([1, 2], 3, expired);
+        vi.advanceTimersByTime(999);
+
+        expect(map.get([1, 2])).toBe(3);
+        expect(expired).not.toHaveBeenCalled();
+      });
+
+      it('replaces the expired callback when overriding an entry', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired1 = vi.fn();
+        const expired2 = vi.fn();
+
+        map.set([1, 2], 1, expired1);
+        map.set([1, 2], 2, expired2);
+
+        vi.advanceTimersByTime(1000);
+
+        expect(expired1).not.toHaveBeenCalled();
+        expect(expired2).toHaveBeenCalledTimes(1);
+        expect(expired2).toHaveBeenCalledWith(2);
+      });
+
+      it('does not call the previous expired callback when overriding an entry without one', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired = vi.fn();
+
+        map.set([1, 2], 1, expired);
+        map.set([1, 2], 2);
+
+        vi.advanceTimersByTime(1000);
+
+        expect(expired).not.toHaveBeenCalled();
+      });
+
+      it('extends the entry lifetime when using get before calling the expired callback', (): void => {
+        const map: EphemeralDeepMap<number> = new EphemeralDeepMap<number>(1000);
+        const expired = vi.fn();
+
+        map.set([1, 2], 3, expired);
+        vi.advanceTimersByTime(600);
+
+        expect(map.get([1, 2])).toBe(3);
+        vi.advanceTimersByTime(600);
+        expect(expired).not.toHaveBeenCalled();
+
+        vi.advanceTimersByTime(1000);
+
+        expect(map.size).toBe(0);
+        expect(expired).toHaveBeenCalledTimes(1);
+        expect(expired).toHaveBeenCalledWith(3);
       });
     });
 

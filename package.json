@@ -1,6 +1,6 @@
 {
   "name": "@xstd/deep-map",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "type": "module",
   "description": "A deep Map",
   "keywords": [

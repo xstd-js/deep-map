@@ -1,5 +1,5 @@
 import type { GenericConstructor } from '@xstd/constructor-types';
-import { EphemeralDeepMap } from '../ephemeral-deep-map.ts';
+import { EphemeralDeepMap, type OnEphemeralDeepMapEntryExpired } from '../ephemeral-deep-map.ts';
 
 const CACHED_INSTANCES: EphemeralDeepMap<unknown> = new EphemeralDeepMap<unknown>(60_000);
 
@@ -9,6 +9,7 @@ const CACHED_INSTANCES: EphemeralDeepMap<unknown> = new EphemeralDeepMap<unknown
  *
  * Instances are cached in a shared {@link EphemeralDeepMap}, keyed by `[ctor, ...args]`.
  * Each entry is automatically removed 60 seconds after its last access; this duration is extended each time the instance is retrieved.
+ * When an entry expires, the cached instance is disposed: `Symbol.asyncDispose` is called if present, otherwise `Symbol.dispose`.
  *
  * @example
  *
@@ -31,7 +32,17 @@ export function cachedInstance<GConstructor extends GenericConstructor>(
   ctor: GConstructor,
   ...args: ConstructorParameters<GConstructor>
 ): InstanceType<GConstructor> {
-  return CACHED_INSTANCES.upsert([ctor, ...args], (): InstanceType<GConstructor> => {
-    return new ctor(...args);
-  }) as InstanceType<GConstructor>;
+  return CACHED_INSTANCES.upsert(
+    [ctor, ...args],
+    (): InstanceType<GConstructor> => {
+      return new ctor(...args);
+    },
+    ((value: InstanceType<GConstructor>): void => {
+      if (Symbol.asyncDispose in value) {
+        value[Symbol.asyncDispose]();
+      } else if (Symbol.dispose in value) {
+        value[Symbol.dispose]();
+      }
+    }) as OnEphemeralDeepMapEntryExpired<unknown>,
+  ) as InstanceType<GConstructor>;
 }

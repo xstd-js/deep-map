@@ -123,4 +123,33 @@ describe('cachedInstance', (): void => {
     expect(cachedInstance(Foo)).not.toBe(first);
     expect(instanceId).toBe(2);
   });
+
+  it('disposes the instance with Symbol.asyncDispose when it expires', (): void => {
+    const disposed: unknown[] = [];
+    class Foo {
+      [Symbol.asyncDispose](): Promise<void> {
+        disposed.push(this);
+        return Promise.resolve();
+      }
+    }
+
+    const instance: Foo = cachedInstance(Foo);
+    vi.advanceTimersByTime(60_000);
+
+    expect(disposed).toEqual([instance]);
+  });
+
+  it('disposes the instance with Symbol.dispose when it expires', (): void => {
+    const disposed: unknown[] = [];
+    class Foo {
+      [Symbol.dispose](): void {
+        disposed.push(this);
+      }
+    }
+
+    const instance: Foo = cachedInstance(Foo);
+    vi.advanceTimersByTime(60_000);
+
+    expect(disposed).toEqual([instance]);
+  });
 });

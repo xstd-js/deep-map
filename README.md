@@ -184,10 +184,18 @@ sizes.set([container, panel], panel.getBoundingClientRect().width);
 
 The EphemeralDeepMap object holds key-value pairs where the key is an Iterable of unknown values.
 Each entry is automatically removed after the `keepalive` duration; this duration is extended each time the entry is accessed.
+An optional `expired` callback can be provided for each entry; it is called with the value when the entry expires (manual removals with `delete` or `clear`, and replacements with `set`, do not call it).
 
 ```ts
+export interface OnEphemeralDeepMapEntryExpired<GValue> {
+  (value: GValue): any;
+}
+
 export declare class EphemeralDeepMap<GValue> {
-  constructor(keepalive: number, input?: Iterable<readonly [DeepMapKey, GValue]>);
+  constructor(
+    keepalive: number,
+    input?: Iterable<readonly [DeepMapKey, GValue, OnEphemeralDeepMapEntryExpired<GValue>?]>,
+  );
 
   /**
    * The duration in milliseconds after which an entry is removed if it is not accessed.
@@ -203,7 +211,7 @@ export declare class EphemeralDeepMap<GValue> {
    * Adds a new element with a specified key and value to the DeepMap.
    * If an element with the same key already exists, the element will be updated.
    */
-  set(key: DeepMapKey, value: GValue): this;
+  set(key: DeepMapKey, value: GValue, expired?: OnEphemeralDeepMapEntryExpired<GValue>): this;
 
   /**
    * Returns the element associated with the specified key from the DeepMap.
@@ -225,7 +233,11 @@ export declare class EphemeralDeepMap<GValue> {
    *
    * @returns the value existing or inserted associated with the specified key.
    */
-  upsert(key: DeepMapKey, factory: () => GValue): GValue;
+  upsert(
+    key: DeepMapKey,
+    factory: () => GValue,
+    expired?: OnEphemeralDeepMapEntryExpired<GValue>,
+  ): GValue;
 
   /**
    * Removes the element associated with the specified key from the DeepMap.
@@ -286,6 +298,7 @@ If this instance is not cached, it is constructed with `args`, added to the cach
 
 Instances are cached in a shared EphemeralDeepMap, keyed by `[ctor, ...args]`.
 Each entry is automatically removed 60 seconds after its last access; this duration is extended each time the instance is retrieved.
+When an entry expires, the cached instance is disposed: `Symbol.asyncDispose` is called if present, otherwise `Symbol.dispose`.
 
 ```ts
 export declare function cachedInstance<GConstructor extends GenericConstructor>(

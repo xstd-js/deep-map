@@ -1,6 +1,16 @@
 import { DeepMap, type DeepMapKey } from '../deep-map.ts';
 
 /**
+ * A function called when an entry of an EphemeralDeepMap expires.
+ *
+ * It is called only when the entry expires: it is not called when the entry is removed manually with `delete` or `clear`, nor when it is replaced by `set`.
+ * Exceptions thrown by this function are not caught on purpose: they propagate as uncaught exceptions.
+ */
+export interface OnEphemeralDeepMapEntryExpired<GValue> {
+  (value: GValue): any;
+}
+
+/**
  * An entry of an EphemeralDeepMap.
  */
 export interface EphemeralDeepMapEntry<GValue> {
@@ -8,6 +18,11 @@ export interface EphemeralDeepMapEntry<GValue> {
    * The value stored in the entry.
    */
   readonly value: GValue;
+
+  /**
+   * A function called when the entry expires.
+   */
+  readonly expired?: OnEphemeralDeepMapEntryExpired<GValue>;
 
   /**
    * The timer responsible for the expiration of the entry.
@@ -40,10 +55,15 @@ export class EphemeralDeepMap<GValue> {
    * Creates a new EphemeralDeepMap.
    *
    * @param keepalive the duration in milliseconds after which an entry is removed if it is not accessed.
-   * @param input an Iterable of key/value pairs to insert in the EphemeralDeepMap.
+   * @param input an Iterable of key/value pairs with an optional `expired` callback to insert in the EphemeralDeepMap.
    * @throws if `keepalive` is not a strictly positive safe integer.
    */
-  constructor(keepalive: number, input?: Iterable<readonly [DeepMapKey, GValue]>) {
+  constructor(
+    keepalive: number,
+    input?: Iterable<
+      readonly [key: DeepMapKey, value: GValue, expired?: OnEphemeralDeepMapEntryExpired<GValue>]
+    >,
+  ) {
     if (Number.isNaN(keepalive) || !Number.isSafeInteger(keepalive) || keepalive <= 0) {
       throw new Error('Keepalive must be greater than 0');
     }
@@ -52,8 +72,8 @@ export class EphemeralDeepMap<GValue> {
     this.#map = new DeepMap<EphemeralDeepMapEntry<GValue>>();
 
     if (input !== undefined) {
-      for (const [key, value] of input) {
-        this.set(key, value);
+      for (const [key, value, expired] of input) {
+        this.set(key, value, expired);
       }
     }
   }
@@ -78,7 +98,10 @@ export class EphemeralDeepMap<GValue> {
 
   #startEntryTimer(key: DeepMapKey): ReturnType<typeof setTimeout> {
     return setTimeout((): void => {
+      const { value, expired } = this.#map.get(key)!;
       this.#map.delete(key);
+      // Exceptions thrown by `expired` are not caught on purpose: they propagate as uncaught exceptions.
+      expired?.(value);
     }, this.#keepalive);
   }
 
@@ -89,9 +112,10 @@ export class EphemeralDeepMap<GValue> {
 
   /**
    * Adds a new element with a specified key and value to the DeepMap.
-   * If an element with the same key already exists, the element will be updated.
+   * If an element with the same key already exists, the element will be updated (its `expired` callback is replaced as well).
+   * If provided, `expired` is called with the value when the entry expires.
    */
-  set(key: DeepMapKey, value: GValue): this {
+  set(key: DeepMapKey, value: GValue, expired?: OnEphemeralDeepMapEntryExpired<GValue>): this {
     const entry: EphemeralDeepMapEntry<GValue> | undefined = this.#map.get(key);
 
     if (entry !== undefined) {
@@ -100,6 +124,7 @@ export class EphemeralDeepMap<GValue> {
 
     this.#map.set(key, {
       value,
+      expired,
       timer: this.#startEntryTimer(key),
     });
 
@@ -141,15 +166,20 @@ export class EphemeralDeepMap<GValue> {
   /**
    * Returns the element associated with the specified key from the DeepMap.
    * If this element does not exist, then `factory` is called, the returned value is inserted in the DeepMap, and this value is returned.
+   * If provided, `expired` is called with the value when the inserted entry expires.
    *
    * @returns the value existing or inserted associated with the specified key.
    */
-  upsert(key: DeepMapKey, factory: () => GValue): GValue {
+  upsert(
+    key: DeepMapKey,
+    factory: () => GValue,
+    expired?: OnEphemeralDeepMapEntryExpired<GValue>,
+  ): GValue {
     if (this.#map.has(key)) {
       return this.get(key) as GValue;
     } else {
       const value: GValue = factory();
-      this.set(key, value);
+      this.set(key, value, expired);
       return value;
     }
   }
