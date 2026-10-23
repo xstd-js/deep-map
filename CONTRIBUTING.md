@@ -69,32 +69,36 @@ yarn install
 
 ## Release Workflow
 
+> The `release.yml` workflow runs on `pull_request` and `push` events on the `main` and `develop` branches.
+> It invokes the `yarn fb:ci:release` used to build and publish the package.
+> Note that the `publish` step runs only if the equivalent stable version (`x.y.z`) does not already exist on npm
+
 ### 1. Pull Request to `main` or `develop`
 
-- The `release.yml` workflow runs on `pull_request`
-- The `yarn fb:ci:release` step runs **only if** the PR has the `dev` label
-- Impacted packages are published as:
-- `x.y.z-dev.<timestamp>`
+- The `dev` label is added to the PR
+- Impacted packages are published as: `x.y.z-dev.<timestamp>`
 - npm dist-tag: `dev`
+
+> Use the `dev` versions only if required.
+
+> NOTE: the PR is published only if it carries the `dev` label: add it to the PR to get a `dev` release, otherwise the release is skipped.
+> Pull requests coming from forks always run in dry-run mode: nothing is published.
 
 ### 2. Push to `develop`
 
-- Impacted packages are published as:
-- `x.y.z-rc.<timestamp>`
+- Impacted packages are published as: `x.y.z-rc.<timestamp>`
 - npm dist-tag: `rc`
 
 ### 3. Push to `main`
 
-- Stable publication:
-- `x.y.z`
+- Stable publication: `x.y.z`
 - npm dist-tag: `latest`
-- Only if `name@x.y.z` does not already exist on npm
 
 ### Graph
 
 ```mermaid
 flowchart LR
-  EVENT("EVENT")
+  EVENT("WORKFLOW TRIGGER")
   HAS_DEV_TAG{"has &quotdev&quot tag ?"}
   SKIP_BUILD(["skip build"])
   BUILD_DEV_PACKAGES["build &quotdev&quot package"]
@@ -121,6 +125,7 @@ flowchart LR
 
 ## Important Rules
 
-- if the version already exists on npm: the release is skipped
+- if an equivalent **stable** version already exists on npm: the release fails — bump the `package.json#version` before releasing (this also blocks `dev` / `rc` releases of a stable version that was already published)
 - the `package.json` file in the repo must keep stable versions (`x.y.z`)
 - `-dev` / `-rc` suffixes are generated in CI
+- the npm publish authenticates with [GitHub Actions OIDC](https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-oidc): no `NPM_TOKEN` secret is required (the `release.yml` workflow requests the `id-token: write` permission)
